@@ -44,76 +44,102 @@ bool check_loop(vector<vector<char>> map, pair<int, int> coords) {
 
   char sign = map[coords.first][coords.second];
 
-  if (map[coords.first][coords.second] == '^') {
+  if (sign == '^') {
+    if (map[coords.first - 1][coords.second] == '#')
+      return false;
     if (coords.first == 0)
       return false;
     map[coords.first - 1][coords.second] = 'O';
-  } else if (map[coords.first][coords.second] == '>') {
+    map[coords.first][coords.second] = '>';
+  } else if (sign == '>') {
+    if (map[coords.first][coords.second + 1] == '#')
+      return false;
     if (col_end == coords.second + 1)
       return false;
     map[coords.first][coords.second + 1] = 'O';
-  } else if (map[coords.first][coords.second] == 'v') {
+    map[coords.first][coords.second] = 'v';
+  } else if (sign == 'v') {
+    if (map[coords.first + 1][coords.second] == '#')
+      return false;
     if (row_end == coords.first + 1)
       return false;
     map[coords.first + 1][coords.second] = 'O';
-  } else if (map[coords.first][coords.second] == '<') {
+    map[coords.first][coords.second] = '<';
+  } else if (sign == '<') {
+    if (map[coords.first][coords.second - 1] == '#')
+      return false;
     if (coords.second == 0)
       return false;
     map[coords.first][coords.second - 1] = 'O';
+    map[coords.first][coords.second] = '^';
   }
 
   // need to keep track of corners now.
+  // so if it does a full rotation and does not reach the sign then we have
+  // something on our hands.
+  int rotations = 0;
 
-  while (coords.first != row_end - 1 || coords.second != col_end - 1 ||
-         coords.first != 0 || coords.second != 0) {
+  while (rotations < 5 && coords.first != (row_end - 1) &&
+         coords.second != (col_end - 1) && coords.first > 0 &&
+         coords.second > 0) {
 
     if (map[coords.first][coords.second] == '^') {
 
-      if (map[coords.first - 1][coords.second] == '.' ||
-          map[coords.first - 1][coords.second] == 'X') {
-        map[coords.first][coords.second] = 'X';
-        coords.first--;
-        map[coords.first][coords.second] = '^';
+      if (map[coords.first - 1][coords.second] == '.') {
+        map[coords.first][coords.second] = '.';
+        map[--coords.first][coords.second] = '^';
       } else {
+        if (rotations == 4 && map[coords.first - 1][coords.second] == 'O') {
+          return true;
+        }
+        rotations++;
         map[coords.first][coords.second] = '>';
       }
     } else if (map[coords.first][coords.second] == '<') {
 
-      if (map[coords.first][coords.second - 1] == '.' ||
-          map[coords.first][coords.second - 1] == 'X') {
-        map[coords.first][coords.second] = 'X';
-        coords.second--;
-        map[coords.first][coords.second] = '<';
+      if (map[coords.first][coords.second - 1] == '.') {
+        map[coords.first][coords.second] = '.';
+        map[coords.first][--coords.second] = '<';
       } else {
+        if (rotations == 4 && map[coords.first][coords.second - 1] == 'O') {
+          return true;
+        }
+        rotations++;
         map[coords.first][coords.second] = '^'; // rotate 90 degrees
       }
     } else if (map[coords.first][coords.second] == '>') {
-
-      if (map[coords.first][coords.second + 1] == '.' ||
-          map[coords.first][coords.second + 1] == 'X') {
-        map[coords.first][coords.second] = 'X';
-        coords.second++;
-        map[coords.first][coords.second] = '>';
+      if (map[coords.first][coords.second + 1] == '.') {
+        map[coords.first][coords.second] = '.';
+        map[coords.first][++coords.second] = '>';
       } else {
+        if (rotations == 4 && map[coords.first][coords.second + 1] == 'O') {
+          return true;
+        }
+        rotations++;
         map[coords.first][coords.second] = 'v';
       }
     } else if (map[coords.first][coords.second] == 'v') {
 
-      if (map[coords.first + 1][coords.second] == '.' ||
-          map[coords.first + 1][coords.second] == 'X') {
-        map[coords.first][coords.second] = 'X';
-        coords.first++;
-        map[coords.first][coords.second] = 'v';
+      if (map[coords.first + 1][coords.second] == '.') {
+        map[coords.first][coords.second] = '.';
+        map[++coords.first][coords.second] = 'v';
       } else {
+        if (rotations == 4 && map[coords.first + 1][coords.second] == 'O') {
+          return true;
+        }
+        rotations++;
         map[coords.first][coords.second] = '<';
       }
     }
   }
 
+  cout << "RETURNING FALSE\n";
+
   return false;
 }
 
 void traversal(vector<vector<char>> &map, pair<int, int> &coords) {
+  vector<vector<char>> og_map = map;
   int row_end = map.size();
   int col_end = map[0].size();
   int distance_traveled = 0;
@@ -128,6 +154,10 @@ void traversal(vector<vector<char>> &map, pair<int, int> &coords) {
   while (coords.first != row_end - 1 || coords.second != col_end - 1 ||
          coords.first != 0 || coords.second != 0) {
 
+    if (check_loop(og_map, coords)) {
+      blockers++;
+    }
+
     if (map[coords.first][coords.second] == '^') {
 
       if (map[coords.first - 1][coords.second] == '.' ||
@@ -170,14 +200,6 @@ void traversal(vector<vector<char>> &map, pair<int, int> &coords) {
       }
     }
 
-    if (checked.find({coords, map[coords.first][coords.second]}) ==
-        checked.end()) {
-      if (check_loop(map, coords)) {
-        blockers++;
-      }
-      checked.insert({coords, map[coords.first][coords.second]});
-    }
-
     if (coords.first == map.size() - 1)
       break;
     if (coords.second == map[0].size() - 1)
@@ -189,8 +211,6 @@ void traversal(vector<vector<char>> &map, pair<int, int> &coords) {
   }
 
   cout << "BLOCKERS: " << blockers << "\n";
-
-  find_distance(map);
 }
 
 int main(int argc, char *argv[]) {
