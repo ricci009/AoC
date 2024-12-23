@@ -1,15 +1,20 @@
 #include <cassert>
-#include <deque>
+#include <cmath>
 #include <fstream>
 #include <iostream>
-#include <istream>
 #include <set>
-#include <stdio.h>
 #include <string>
 #include <utility>
 #include <vector>
 
 using namespace std;
+
+enum Direction {
+  UP,
+  DOWN,
+  LEFT,
+  RIGHT,
+};
 
 void print_map(vector<vector<char>> &map) {
   for (int i = 0; i < map.size(); i++) {
@@ -21,260 +26,266 @@ void print_map(vector<vector<char>> &map) {
   cout << "\n\n";
 }
 
-void find_distance(vector<vector<char>> &map) {
-  int distance = 0;
-  for (int i = 0; i < map.size(); i++) {
-    for (int j = 0; j < map.size(); j++) {
-      if (map[i][j] == 'X') {
-        distance++;
-      }
-    }
+Direction get_direction(vector<vector<char>> &map, pair<int, int> &coords) {
+  if (map[coords.first][coords.second] == '^') {
+    return UP;
+  } else if (map[coords.first][coords.second] == '>') {
+    return RIGHT;
+  } else if (map[coords.first][coords.second] == 'v') {
+    return DOWN;
+  } else if (map[coords.first][coords.second] == '<') {
+    return LEFT;
+  } else {
+    assert(false);
   }
-  distance++;
-  std::cout << distance;
 }
 
-// want to create a new block.
-// check if there is a loop as in the block goes back up
-
-bool check_loop(vector<vector<char>> map, pair<int, int> coords) {
-
-  // the O could create a loop that does not include itself.
-  // so if it reaches the same 4 # or O then it means that there is a loop and
-  // it should return true.
-  //
-  // if any of them have been visited again is it not a loop?
-  // work on this, kind of curious about this.
-
-  deque<pair<int, int>> boxes;
-
-  // check if it connects... if it exits no loop.
-  int row_end = map.size();
-  int col_end = map[0].size();
-  int distance_traveled = 0;
-
-  pair<int, int> og_pos = coords;
-
-  char sign = map[coords.first][coords.second];
-
-  if (sign == '^') {
-    if (map[coords.first - 1][coords.second] == '#')
-      return false;
-    if (coords.first == 0)
-      return false;
-    map[coords.first - 1][coords.second] = 'O';
-    boxes.push_back({coords.first - 1, coords.second});
-    map[coords.first][coords.second] = '>';
-  } else if (sign == '>') {
-    if (map[coords.first][coords.second + 1] == '#')
-      return false;
-    if (col_end == coords.second + 1)
-      return false;
-    map[coords.first][coords.second + 1] = 'O';
-    boxes.push_back({coords.first, coords.second + 1});
-    map[coords.first][coords.second] = 'v';
-  } else if (sign == 'v') {
-    if (map[coords.first + 1][coords.second] == '#')
-      return false;
-    if (row_end == coords.first + 1)
-      return false;
-    map[coords.first + 1][coords.second] = 'O';
-    boxes.push_back({coords.first + 1, coords.second});
-    map[coords.first][coords.second] = '<';
-  } else if (sign == '<') {
-    if (map[coords.first][coords.second - 1] == '#')
-      return false;
-    if (coords.second == 0)
-      return false;
-    map[coords.first][coords.second - 1] = 'O';
-    boxes.push_back({coords.first, coords.second - 1});
-    map[coords.first][coords.second] = '^';
+bool is_spot_empty(vector<vector<char>> &map, pair<int, int> &coords) {
+  Direction dir = get_direction(map, coords);
+  int x = coords.first;
+  int y = coords.second;
+  if (RIGHT) {
+    y++;
+  }
+  if (LEFT) {
+    y--;
+  }
+  if (UP) {
+    x--;
+  }
+  if (DOWN) {
+    x++;
   }
 
-  // need to keep track of corners now.
-  // so if it does a full rotation and does not reach the sign then we have
-  // something on our hands.
+  if (map[x][y] == '.') {
+    return true;
+  }
+  return false;
+}
 
-  while (coords.first != (row_end - 1) && coords.second != (col_end - 1) &&
-         coords.first > 0 && coords.second > 0) {
+void turn_right(vector<vector<char>> &map, pair<int, int> &coords,
+                Direction &direction) {
+  switch (direction) {
+  case UP:
+    direction = RIGHT;
+    map[coords.first][coords.second] = '>';
+    break;
 
-    if (map[coords.first][coords.second] == '^') {
+  case DOWN:
+    direction = LEFT;
+    map[coords.first][coords.second] = '<';
+    break;
 
-      if (map[coords.first - 1][coords.second] == '.') {
-        map[coords.first][coords.second] = '.';
-        map[--coords.first][coords.second] = '^';
-      } else {
-        if (boxes.size() == 4) {
+  case LEFT:
+    direction = UP;
+    map[coords.first][coords.second] = '^';
+    break;
 
-          if (find(boxes.begin(), boxes.end(),
-                   make_pair(coords.first - 1, coords.second)) == boxes.end()) {
-            // does not exist
-            boxes.pop_front();
-            boxes.push_back({coords.first - 1, coords.second});
-          } else {
-            return true;
-          }
+  case RIGHT:
+    direction = DOWN;
+    map[coords.first][coords.second] = 'v';
+    break;
+  }
+}
 
-        } else {
-          boxes.push_back({coords.first - 1, coords.second});
-        }
-        map[coords.first][coords.second] = '>';
-      }
-    } else if (map[coords.first][coords.second] == '<') {
+bool check_boundaries(vector<vector<char>> &map, pair<int, int> &coords) {
+  Direction curr_direction = get_direction(map, coords);
 
-      if (map[coords.first][coords.second - 1] == '.') {
-        map[coords.first][coords.second] = '.';
-        map[coords.first][--coords.second] = '<';
-      } else {
-        if (boxes.size() == 4) {
-
-          if (find(boxes.begin(), boxes.end(),
-                   make_pair(coords.first, coords.second - 1)) == boxes.end()) {
-            // does not exist
-            boxes.pop_front();
-            boxes.push_back({coords.first, coords.second - 1});
-          } else {
-            return true;
-          }
-
-        } else {
-          boxes.push_back({coords.first, coords.second - 1});
-        }
-        map[coords.first][coords.second] = '^'; // rotate 90 degrees
-      }
-    } else if (map[coords.first][coords.second] == '>') {
-      if (map[coords.first][coords.second + 1] == '.') {
-        map[coords.first][coords.second] = '.';
-        map[coords.first][++coords.second] = '>';
-      } else {
-        if (boxes.size() == 4) {
-
-          if (find(boxes.begin(), boxes.end(),
-                   make_pair(coords.first, coords.second + 1)) == boxes.end()) {
-            // does not exist
-            boxes.pop_front();
-            boxes.push_back({coords.first, coords.second + 1});
-          } else {
-            return true;
-          }
-
-        } else {
-          boxes.push_back({coords.first, coords.second + 1});
-        }
-        map[coords.first][coords.second] = 'v';
-      }
-    } else if (map[coords.first][coords.second] == 'v') {
-
-      if (map[coords.first + 1][coords.second] == '.') {
-        map[coords.first][coords.second] = '.';
-        map[++coords.first][coords.second] = 'v';
-      } else {
-        if (boxes.size() == 4) {
-
-          if (find(boxes.begin(), boxes.end(),
-                   make_pair(coords.first + 1, coords.second)) == boxes.end()) {
-            // does not exist
-            boxes.pop_front();
-            boxes.push_back({coords.first + 1, coords.second});
-          } else {
-            return true;
-          }
-
-        } else {
-          boxes.push_back({coords.first + 1, coords.second});
-        }
-        map[coords.first][coords.second] = '<';
-      }
+  if (curr_direction == RIGHT) {
+    if (coords.second + 1 >= map[0].size()) {
+      return false;
+    } else {
+      return true;
     }
-
-    print_map(map);
+  }
+  if (curr_direction == LEFT) {
+    if (coords.second - 1 < 0) {
+      return false;
+    } else {
+      return true;
+    }
+  }
+  if (curr_direction == UP) {
+    if (coords.first - 1 < 0) {
+      return false;
+    } else {
+      return true;
+    }
+  }
+  if (curr_direction == DOWN) {
+    if (coords.first + 1 >= map.size()) {
+      return false;
+    } else {
+      return true;
+    }
   }
 
   return false;
 }
 
-void traversal(vector<vector<char>> &map, pair<int, int> &coords) {
-  vector<vector<char>> og_map = map;
-  int row_end = map.size();
-  int col_end = map[0].size();
-  int distance_traveled = 0;
-
-  int blockers = 0;
-
-  // need to keep track of corners now.
-  pair<int, int> og_pos = coords;
-  char direction = map[coords.first][coords.second];
-
-  set<pair<pair<int, int>, char>> checked;
-
-  int iterations = 0;
-
-  while (coords.first != row_end - 1 || coords.second != col_end - 1 ||
-         coords.first != 0 || coords.second != 0) {
-
-    if (checked.find({coords, direction}) == checked.end()) {
-      if (check_loop(map, coords)) {
-        blockers++;
-      }
-      checked.insert({coords, direction});
+bool traverse(vector<vector<char>> &map, pair<int, int> &coords,
+              Direction &direction) {
+  if (direction == UP) {
+    if (map[coords.first - 1][coords.second] == '.') {
+      map[coords.first][coords.second] = '.';
+      coords.first--;
+      map[coords.first][coords.second] = '^';
+    } else {
+      turn_right(map, coords, direction);
+      return true;
     }
-
-    // if (check_loop(map, coords))
-    //   blockers++;
-
-    if (map[coords.first][coords.second] == '^') {
-
-      if (map[coords.first - 1][coords.second] == '.') {
-        map[coords.first][coords.second] = '.';
-        coords.first--;
-        map[coords.first][coords.second] = '^';
-      } else {
-        map[coords.first][coords.second] = '>';
-      }
-    } else if (map[coords.first][coords.second] == '<') {
-
-      if (map[coords.first][coords.second - 1] == '.') {
-        map[coords.first][coords.second] = '.';
-        coords.second--;
-        map[coords.first][coords.second] = '<';
-      } else {
-        map[coords.first][coords.second] = '^'; // rotate 90 degrees
-      }
-    } else if (map[coords.first][coords.second] == '>') {
-
-      if (map[coords.first][coords.second + 1] == '.') {
-        map[coords.first][coords.second] = '.';
-        coords.second++;
-        map[coords.first][coords.second] = '>';
-      } else {
-        map[coords.first][coords.second] = 'v';
-      }
-    } else if (map[coords.first][coords.second] == 'v') {
-
-      if (map[coords.first + 1][coords.second] == '.') {
-        map[coords.first][coords.second] = '.';
-        coords.first++;
-        map[coords.first][coords.second] = 'v';
-      } else {
-        map[coords.first][coords.second] = '<';
-      }
+  } else if (direction == DOWN) {
+    if (map[coords.first + 1][coords.second] == '.') {
+      map[coords.first][coords.second] = '.';
+      coords.first++;
+      map[coords.first][coords.second] = 'v';
+    } else {
+      turn_right(map, coords, direction);
+      return true;
     }
+  } else if (direction == RIGHT) {
+    if (map[coords.first][coords.second + 1] == '.') {
+      map[coords.first][coords.second] = '.';
+      coords.second++;
+      map[coords.first][coords.second] = '>';
+    } else {
+      turn_right(map, coords, direction);
+      return true;
+    }
+  } else if (direction == LEFT) {
+    if (map[coords.first][coords.second - 1] == '.') {
+      map[coords.first][coords.second] = '.';
+      coords.second--;
+      map[coords.first][coords.second] = '<';
+    } else {
+      turn_right(map, coords, direction);
+      return true;
+    }
+  }
+  return false;
+}
 
-    if (coords.first == map.size() - 1)
-      break;
-    if (coords.second == map[0].size() - 1)
-      break;
-    if (coords.first == 0)
-      break;
-    if (coords.second == 0)
-      break;
+bool add_blocker(vector<vector<char>> &map, pair<int, int> &coords) {
+  Direction curr_direction = get_direction(map, coords);
+  if (!check_boundaries(map, coords))
+    return false;
+  int x = coords.first;
+  int y = coords.second;
 
-    direction = map[coords.first][coords.second];
-    iterations++;
+  switch (curr_direction) {
+  case UP:
+    x = coords.first - 1;
+    break;
+
+  case DOWN:
+    x = coords.first + 1;
+    break;
+
+  case RIGHT:
+    y = coords.second + 1;
+    break;
+
+  case LEFT:
+    y = coords.second - 1;
+    break;
   }
 
-  cout << "BLOCKERS: " << blockers << "\n";
-  cout << "ITERATIONS " << iterations << "\n";
+  map[x][y] = '#';
+  return true;
+}
+
+pair<int, int> get_blocker_coords(vector<vector<char>> map,
+                                  pair<int, int> coords) {
+  Direction curr_direction = get_direction(map, coords);
+  if (!check_boundaries(map, coords))
+    return {-1, -1};
+  int x = coords.first;
+  int y = coords.second;
+
+  switch (curr_direction) {
+  case UP:
+    x = coords.first - 1;
+    break;
+
+  case DOWN:
+    x = coords.first + 1;
+    break;
+
+  case RIGHT:
+    y = coords.second + 1;
+    break;
+
+  case LEFT:
+    y = coords.second - 1;
+    break;
+  }
+
+  return {x, y};
+}
+
+bool check_loop(vector<vector<char>> map, pair<int, int> coords) {
+
+  set<pair<pair<int, int>, Direction>> loop_checker;
+
+  int steps = 0;
+
+  // if (!add_blocker(map, coords))
+  //   return false;
+
+  while (check_boundaries(map, coords)) {
+    Direction curr_direction = get_direction(map, coords);
+    Direction prev_dir = curr_direction;
+    if (traverse(map, coords, curr_direction)) {
+      if (loop_checker.find(make_pair(coords, prev_dir)) !=
+          loop_checker.end()) {
+        return true;
+      } else {
+        loop_checker.insert(make_pair(coords, prev_dir));
+      }
+    }
+  }
+  return false;
+}
+
+int traverse_map(vector<vector<char>> &map, pair<int, int> &coords) {
+  int loops = 0;
+  set<pair<int, int>> blockers;
+
+  pair<int, int> start_coords = coords;
+
+  for (int x = 0; x < map.size(); x++) {
+    for (int y = 0; y < map[x].size(); y++) {
+      if (start_coords.first == x && start_coords.second == y) {
+        continue;
+      } else {
+        vector<vector<char>> copy_map = map;
+        copy_map[x][y] = '#';
+        if (check_loop(copy_map, start_coords)) {
+          loops++;
+        }
+      }
+    }
+  }
+
+  bool p1 = false;
+  if (p1) {
+    while (check_boundaries(map, coords)) {
+      Direction dir = get_direction(map, coords);
+
+      if (is_spot_empty(map, coords)) {
+        pair<int, int> blocker_coords = get_blocker_coords(map, coords);
+        if (blockers.find(blocker_coords) == blockers.end()) {
+          // if (check_loop(map, coords, blockers)) {
+          //   loops++;
+          //   blockers.insert(blocker_coords);
+          // }
+        }
+      }
+
+      traverse(map, coords, dir);
+    }
+  }
+  return loops;
 }
 
 int main(int argc, char *argv[]) {
@@ -303,6 +314,7 @@ int main(int argc, char *argv[]) {
     map.push_back(v_row);
   }
 
-  traversal(map, coords);
+  cout << traverse_map(map, coords) << "\n";
+
   return 0;
 }
